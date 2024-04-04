@@ -9,43 +9,47 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
-chrome_options = webdriver.ChromeOptions()
-chrome_options.add_argument("--incognito")
-driver = webdriver.Chrome(options=chrome_options)
-
-# Load the credentials and URLs
-with open("credentials_and_urls.json") as json_file:
-    data = json.load(json_file)
-
-# Set up the Chrome driver with options
-chrome_options = webdriver.ChromeOptions()
-chrome_options.add_argument("--incognito")
-driver = webdriver.Chrome(options=chrome_options)
-
-url = "https://www.linkedin.com/login"
-driver.get(url)
-time.sleep(2)
-username = data["login_credentials"]["username"]
-password = data["login_credentials"]["password"]
-
-uname = driver.find_element(By.ID, "username")
-uname.send_keys(username)
-time.sleep(2)
-pword = driver.find_element(By.ID, "password")
-pword.send_keys(password)
-time.sleep(2)
-
-driver.find_element(By.XPATH, "//button[@type='submit']").click()
-desired_url = "https://www.linkedin.com/feed/"
 
 
-def wait_for_correct_current_url(desired_url):
-    while driver.current_url != desired_url:
-        time.sleep(0.01)
+def driver_init():
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--incognito")
+    driver = webdriver.Chrome(options=chrome_options)
+
+    # Load the credentials and URLs
+    with open("credentials_and_urls.json") as json_file:
+        data = json.load(json_file)
+
+    # Set up the Chrome driver with options
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--incognito")
+    driver = webdriver.Chrome(options=chrome_options)
+
+    url = "https://www.linkedin.com/login"
+    driver.get(url)
+    time.sleep(2)
+    username = data["login_credentials"]["username"]
+    password = data["login_credentials"]["password"]
+
+    uname = driver.find_element(By.ID, "username")
+    uname.send_keys(username)
+    time.sleep(2)
+    pword = driver.find_element(By.ID, "password")
+    pword.send_keys(password)
+    time.sleep(2)
+
+    driver.find_element(By.XPATH, "//button[@type='submit']").click()
+    desired_url = "https://www.linkedin.com/feed/"
 
 
-wait_for_correct_current_url(desired_url)
+    def wait_for_correct_current_url(desired_url):
+        while driver.current_url != desired_url:
+            time.sleep(0.01)
 
+
+    wait_for_correct_current_url(desired_url)
+
+    return driver
 
 def extract_connections(soup):
     # Find the element containing the connections count.
@@ -163,6 +167,7 @@ def get_text_excluding_comments(tag):
 
 
 def scrape_profile(data):
+    driver = driver_init()
     profiles_data = []
 
     for profile_url in data["profile_urls"]:  ## Dict containing list of urls

@@ -7,13 +7,13 @@ app = Flask(__name__)
 @app.route("/scrape", methods=["POST"])
 def api_scrape():
     content = request.json
-    profile_url = content.get("profile_url")
+    profile_url = content.get("profile_urls")
 
     if not profile_url:
         return jsonify({"error": "Profile URL is required."}), 400
 
     try:
-        data = scrape_profile(profile_url)
+        data = scrape_profile(content)
         return jsonify(data), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
