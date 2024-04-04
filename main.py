@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from linkedIn import scrape_profile
+from linkedIn import master
 
 app = Flask(__name__)
 
@@ -13,8 +13,11 @@ def api_scrape():
         return jsonify({"error": "Profile URL is required."}), 400
 
     try:
-        data = scrape_profile(profile_url)
-        return jsonify(data), 200
+        data = master(profile_url)
+        output = {"profiles_data": data}
+
+
+        return jsonify(output), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

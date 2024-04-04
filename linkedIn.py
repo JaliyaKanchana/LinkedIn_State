@@ -8,43 +8,46 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
-
-chrome_options = webdriver.ChromeOptions()
-chrome_options.add_argument("--incognito")
-driver = webdriver.Chrome(options=chrome_options)
-
-# Load the credentials and URLs
-with open("credentials_and_urls.json") as json_file:
-    data = json.load(json_file)
-
-# Set up the Chrome driver with options
-chrome_options = webdriver.ChromeOptions()
-chrome_options.add_argument("--incognito")
-driver = webdriver.Chrome(options=chrome_options)
-
-url = "https://www.linkedin.com/login"
-driver.get(url)
-time.sleep(2)
-username = data["login_credentials"]["username"]
-password = data["login_credentials"]["password"]
-
-uname = driver.find_element(By.ID, "username")
-uname.send_keys(username)
-time.sleep(2)
-pword = driver.find_element(By.ID, "password")
-pword.send_keys(password)
-time.sleep(2)
-
-driver.find_element(By.XPATH, "//button[@type='submit']").click()
-desired_url = "https://www.linkedin.com/feed/"
+import requests
 
 
-def wait_for_correct_current_url(desired_url):
-    while driver.current_url != desired_url:
-        time.sleep(0.01)
+def driver_init():
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--incognito")
+    driver = webdriver.Chrome(options=chrome_options)
 
+    # Load the credentials and URLs
+    with open("credentials_and_urls.json") as json_file:
+        data = json.load(json_file)
 
-wait_for_correct_current_url(desired_url)
+    # Set up the Chrome driver with options
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--incognito")
+    driver = webdriver.Chrome(options=chrome_options)
+
+    url = "https://www.linkedin.com/login"
+    driver.get(url)
+    time.sleep(2)
+    username = data["login_credentials"]["username"]
+    password = data["login_credentials"]["password"]
+
+    uname = driver.find_element(By.ID, "username")
+    uname.send_keys(username)
+    time.sleep(2)
+    pword = driver.find_element(By.ID, "password")
+    pword.send_keys(password)
+    time.sleep(2)
+
+    driver.find_element(By.XPATH, "//button[@type='submit']").click()
+    desired_url = "https://www.linkedin.com/feed/"
+
+    def wait_for_correct_current_url(desired_url):
+        while driver.current_url != desired_url:
+            time.sleep(0.01)
+
+    wait_for_correct_current_url(desired_url)
+
+    return driver
 
 
 def extract_connections(soup):
@@ -162,7 +165,8 @@ def get_text_excluding_comments(tag):
     return "".join(texts).strip()
 
 
-def scrape_profile(data):
+def scrape_profile_selenium(data):
+    driver = driver_init()
     profiles_data = []
 
     for profile_url in data["profile_urls"]:  ## Dict containing list of urls
@@ -310,38 +314,84 @@ def scrape_profile(data):
         return profiles_data
 
 
-def csv_export(profiles_data, filename):
-    # Convert the scraped data to a pandas DataFrame
-    profiles_df = pd.DataFrame.from_records(profiles_data)
+def scrape_profile_pcurl(data):
+    with open("pcurl.key", "r") as f:
+        api_key = f.read()
 
-    # Expand 'Experience' and 'Education' lists into string representations for CSV
-    profiles_df["Experience"] = profiles_df["Experience"].apply(
-        lambda x: (
-            "\n".join(
-                [f"{exp['Job Title']} at {exp['Company']}, {exp['Date']}" for exp in x]
-            )
-            if x
-            else ""
+    profiles_data = []
+
+    for profile_url in data["profile_urls"]:
+        headers = {"Authorization": "Bearer " + api_key}
+        api_endpoint = "https://nubela.co/proxycurl/api/v2/linkedin"
+        response = requests.get(
+            api_endpoint,
+            params={
+                "url": profile_url,
+                "use_cache": "if-recent",
+            },  # if-recent uses two credits
+            headers=headers,
         )
-    )
-    profiles_df["Education"] = profiles_df["Education"].apply(
-        lambda x: (
-            "\n".join(
-                [
-                    f"{edu['School Name']}, {edu['Degree Name']}, {edu['Field of Study']}, {edu['Dates Attended']}"
-                    for edu in x
-                ]
-            )
-            if x
-            else ""
+
+        # print(response)
+
+        profiles_data.append(response.json())
+
+    return profiles_data
+
+
+def master(data):
+    try:
+        output = scrape_profile_selenium(data)  # scrape_profile_selenium
+
+    except (KeyError, ValueError) as e:  # Jaliya to test
+        print(
+            f"Selenium failed, trying scraping through proxycurl - error {type(e).__name__}, {e}"
         )
-    )
+        output = scrape_profile_pcurl(data)
 
-    # Save the DataFrame to a CSV file
-    profiles_df.to_csv(filename, index=False, encoding="utf-8")
+    # Add data validation and uniformity for both calls
 
-    print(
-        "\nLinkedIn profile data has been successfully saved to linkedin_profiles.csv."
-    )
+    return output
 
-    return True
+
+class SupportFuns:
+
+    @staticmethod
+    def csv_export(profiles_data, filename):
+        # Convert the scraped data to a pandas DataFrame
+        profiles_df = pd.DataFrame.from_records(profiles_data)
+
+        # Expand 'Experience' and 'Education' lists into string representations for CSV
+        profiles_df["Experience"] = profiles_df["Experience"].apply(
+            lambda x: (
+                "\n".join(
+                    [
+                        f"{exp['Job Title']} at {exp['Company']}, {exp['Date']}"
+                        for exp in x
+                    ]
+                )
+                if x
+                else ""
+            )
+        )
+        profiles_df["Education"] = profiles_df["Education"].apply(
+            lambda x: (
+                "\n".join(
+                    [
+                        f"{edu['School Name']}, {edu['Degree Name']}, {edu['Field of Study']}, {edu['Dates Attended']}"
+                        for edu in x
+                    ]
+                )
+                if x
+                else ""
+            )
+        )
+
+        # Save the DataFrame to a CSV file
+        profiles_df.to_csv(filename, index=False, encoding="utf-8")
+
+        print(
+            "\nLinkedIn profile data has been successfully saved to linkedin_profiles.csv."
+        )
+
+        return True
