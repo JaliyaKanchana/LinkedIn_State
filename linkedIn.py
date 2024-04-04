@@ -341,17 +341,23 @@ def scrape_profile_pcurl(data):
 
 def master(data):
     try:
-        output = scrape_profile_selenium(data)  # scrape_profile_selenium
+        output = scrape_profile_selenium(data)
+        if not output:
+            raise ValueError("No data returned from Selenium scraping.")
+        return output
+    except (KeyError, ValueError) as e:
+        print(f"Selenium scraping failed - {type(e).__name__}: {e}")
+        try:
+            output = scrape_profile_pcurl(data)
+            if not output:
+                raise ValueError("No data returned from ProxyCurl scraping.")
+            return output
+        except Exception as e:
+            print(f"ProxyCurl scraping failed - {type(e).__name__}: {e}")
+            return {"error": f"Scraping failed: {str(e)}"}
 
-    except (KeyError, ValueError) as e:  # Jaliya to test
-        print(
-            f"Selenium failed, trying scraping through proxycurl - error {type(e).__name__}, {e}"
-        )
-        output = scrape_profile_pcurl(data)
 
-    # Add data validation and uniformity for both calls
 
-    return output
 
 
 class SupportFuns:
